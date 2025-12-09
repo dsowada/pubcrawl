@@ -1,0 +1,76 @@
+\documentclass[11pt,a4paper]{article}
+
+% ---------- Packages ----------
+\usepackage[margin=2.5cm]{geometry}
+\usepackage[english]{babel}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{setspace}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{csquotes}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{hyperref}  % nur einmal laden
+\usepackage{tikz}      % für Pipeline-Grafik
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    urlcolor=blue,
+    citecolor=black
+}
+
+\begin{document}
+
+% ---------- Titelseite ----------
+\begin{titlepage}
+    \centering
+
+    % Logo
+    \includegraphics[width=0.75\textwidth]{images/oth_logo.pdf} \\[2cm]
+
+    % Titel
+    {\Huge \textbf{Pub Crawl Recommendation System}} \\[6pt]
+
+    % Untertitel
+    {\Large Applied Data Science with Python} \\
+
+    % Datum
+    {\textbf{Date:} 19.11.2025}\\[3cm]
+    
+    % Autor
+    \begin{large}
+        \textbf{Student:} Daniel Sowada\\
+        \textbf{Matr. Nr.:} 3398704
+    \end{large}
+    
+    \vfill
+    
+    {\large OTH Regensburg}
+\end{titlepage}
+
+% ---------- Inhaltsverzeichnis ----------
+
+% Römische Seitenzahlen für ToC, dann arabisch für Inhalt => keine doppelten page.1-Anker
+\pagenumbering{roman}
+\tableofcontents
+\clearpage
+
+\pagenumbering{arabic}
+\onehalfspacing
+
+% ---------- Inhalt ----------
+\input{sections/introduction.tex}
+\input{sections/tools.tex}
+\input{sections/modules.tex}
+\input{sections/data_structure.tex}
+\input{sections/algorithm.tex}
+
+\end{document}

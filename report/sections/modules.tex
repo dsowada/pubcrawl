@@ -1,0 +1,19 @@
+\section{Modules}
+
+The following Python modules are planned for use in the implementation:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{requests} -- to call the Overpass API and obtain raw JSON data
+          describing bars in the Regensburg Altstadt.
+    \item \textbf{json} -- to parse the API responses into Python objects.
+    \item \textbf{pandas} -- to clean and organise the bar data in tabular form
+          and to perform filtering and feature engineering.
+    \item \textbf{geopy.distance} -- to compute distances between latitude/longitude
+          coordinates (e.g., between user and bars, or between different bars).
+    \item \textbf{networkx} -- to model the bars as a graph and to compute
+          shortest or near-shortest paths for the pub crawl.
+    \item \textbf{folium} -- for displaying the ideal route from bar to bar
+\end{itemize}
+
+It is possible that the modules here will differ at the end of the project, because the
+implementation process did not finish. All changes will be added to the final assignment.

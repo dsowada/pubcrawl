@@ -1,0 +1,61 @@
+\section{Data Structures}
+
+The project will mainly rely on the following data structures:
+
+\subsection{Pandas Dataframe}
+
+All bars fetched from OpenStreetMap will be stored in a \texttt{pandas.DataFrame}
+with columns such as:
+
+\begin{table}[H]
+\centering
+\caption{Structure of the bar Dataframe}
+\label{tab:df}
+\begin{tabular}{llll}
+\toprule
+\textbf{Column} & \textbf{Type} & \textbf{Description} \\ 
+\midrule
+name & string & Venue name \\
+lat, lon & float & Coordinates of the bar \\
+tags & dict & OSM metadata (amenity, cuisine, music etc.) \\
+opening\_hours & string / parsed object & Extracted from tags \\
+dist\_user & float & Distance to user location (meters) \\
+type\_derived & string & Normalised bar category \\
+score\_total & float & Final overall recommendation score \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+
+This structure makes it easy to filter bars, compute scores and export to CSV
+if needed.
+
+% \subsection{Python Dictionaries}
+
+% Dictionaries will be used to store user preferences and tag mappings, for example:
+% \begin{itemize}[leftmargin=*]
+%     \item a preference dictionary such as\\
+%           \texttt{\{"style": "student bar", "music": "jazz"\}}
+%     \item mappings from raw OSM tags to simplified categories (e.g., mapping
+%           several tags to the label \enquote{sports bar})
+% \end{itemize}
+
+% \subsection{Graph Structure (NetworkX)}
+
+% For route calculation, I will build a weighted graph where:
+
+% \begin{itemize}[leftmargin=*]
+%     \item nodes represent bars (and optionally the starting location),
+%     \item edges represent possible walking paths between bars,
+%     \item edge weights store the distance between locations.
+% \end{itemize}
+
+% This graph is then used with NetworkX functions or heuristics to compute a
+% reasonable pub crawl order.
+
+\subsection{Dataframe of suitable bars}
+
+Intermediate results, such as the list of bars matching user preferences, will
+be stored in panda dataframes whit all the necessary informations before they
+are passed into the graph-based route computation.

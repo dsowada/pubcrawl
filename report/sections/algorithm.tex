@@ -1,0 +1,115 @@
+\section{Algorithm}
+
+This section presents the planned algorithmic workflow for the pub crawl
+recommendation system. Since the final implementation may evolve based on
+data availability and usability testing, the description reflects a
+flexible and structured design.
+
+The algorithm section consists of four major phases: data acquisition, preference
+scoring, graph construction, and route optimisation.
+
+\subsection{Data Acquisition}
+
+The system will begin by retrieving venue information from the Overpass API
+for the Regensburg Altstadt. The obtained JSON data is normalised into a
+\texttt{pandas.DataFrame}, and relevant attributes such as geographical
+coordinates and opening hours are extracted.
+
+Because API queries may fail due to rate limits or connection issues, the
+system will include a cached fallback dataset to ensure stable operation and
+reproducible results.
+
+\subsection{Preference Filtering and Scoring}
+
+To determine which bars best fit the users preferences, the system
+assigns a preference score to each venue. The scoring model follows a
+sum formulation, allowing flexible adjustment of the importance
+of each criterion based on usability considerations. This needs 
+to be adjustedin the end. 
+
+For any bar $b$, the overall score is computed as:
+
+\[
+\text{score}(b) =
+w_{\text{dist}} \cdot s_{\text{dist}}(b)
++ w_{\text{open}} \cdot s_{\text{open}}(b)
++ w_{\text{pref}} \cdot s_{\text{pref}}(b),
+\]
+
+where each term consists of a weight $w_i$ and a corresponding sub-score
+$s_i(b) \in [0,1]$. The weights can later be tuned to reflect user
+feedback or empirical performance.
+
+The following sub-scores are currently planned:
+
+\begin{itemize}
+    \item \textbf{Distance Score:}
+    Distances are normalised to the interval $[0,1]$, such that closer
+    bars receive higher values:
+    \[
+    s_{\text{dist}}(b)
+    = 1 - \min\left(1, \frac{d(b)}{d_{\max}}\right).
+    \]
+
+    \item \textbf{Opening-Hours Score:}
+    \[
+    s_{\text{open}}(b) =
+    \begin{cases}
+        1, & \text{if the bar is open at the planned visit time}, \\
+        0.75, & \text{if the bar closes in the next 3 hours}.\\
+        0.5, & \text{if the bar closes in the next 2 hours}.\\
+        0.25, & \text{if the bar closes in the next 1 hour}.\\
+        0, & \text{if it is closed}, 
+    \end{cases}
+    \]
+
+    \item \textbf{Optional Preference Score:}
+    This term allows integrating additional user-defined preferences,
+    such as bar type, atmosphere, or food availability. Since these
+    attributes may not always be available in the data, this part of the
+    scoring model is optional:
+    \[
+    s_{\text{pref}}(b) =
+    \begin{cases}
+        1, & \text{if the bar matches the user preference}, \\
+        0.5, & \text{if information is missing}, \\
+        0, & \text{if the bar does not match the preference}.
+    \end{cases}
+    \]
+\end{itemize}
+
+This additive scoring structure ensures high flexibility: the weights
+$w_{\text{dist}}, w_{\text{open}}, w_{\text{pref}}$ can be freely adjusted
+during development or testing to improve recommendation quality. The model 
+for the preference score can also be enhanced.
+
+\subsection{Graph Construction}
+
+After selecting the top $k$ bars, the system needs a way to organise their
+locations so that an efficient route can be determined. To achieve this, the
+bars and the users starting position are represented in a structure that
+captures how each location is connected to the others. 
+
+This representation stores which bars can be visited from which others and
+how far apart they are. It does not rely on any specific algorithm or library
+at this stage; instead, it provides a general foundation on which different
+route finding methods can be applied later. The main idea is simply to
+convert the geographic information of the bars into a form that allows
+systematic comparison of possible paths.
+
+\subsection{Route Optimisation}
+
+Once the bars are organised in this structure, the next step is to determine
+a sensible order in which they should be visited. Since visiting all possible
+permutations would be inefficient, especially as more bars are added, the
+system will rely on a simplified optimisation strategy.
+
+Instead of computing the absolute mathematically optimal route, the goal is
+to find a route that is “good enough” for practical use. Possible approaches
+include following the nearest suitable bar at each step or using an
+approximation method that produces short routes. The exact choice of method may 
+depend on how well different approaches perform during implementation.
+
+The final output of this phase is a recommended sequence of bars that forms
+a efficient pub crawl route starting from the users current
+location.
