@@ -13,7 +13,8 @@ from streamlit_folium import st_folium
 
 def haversine_distance(lat1, lon1, lat2, lon2):
     """
-    Luftliniendistanz in Kilometern (Fallback nur für Notfälle).
+    Luftliniendistanz in Kilometern.
+    Wird genutzt, wenn kein ORS-Key vorhanden ist oder ORS fehlschlägt.
     """
     R = 6371  # Erdradius in km
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
@@ -27,11 +28,12 @@ def haversine_distance(lat1, lon1, lat2, lon2):
     return R * c
 
 
-ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBjZTg0MmEwMDk0NjRkY2RiNzYzM2Q0NjBiZmJhN2EwIiwiaCI6Im11cm11cjY0In0="
+ORS_BASE_URL = "https://api.openrouteservice.org/v2/directions/foot-walking"
+
 
 def get_ors_api_key():
     """
-    Holt den ORS-API-Key entweder aus der Umgebung oder aus st.secrets.
+    Holt den ORS-API-Key aus Umgebungsvariablen oder Streamlit-Secrets.
     Gibt None zurück, wenn kein Key vorhanden ist.
     """
     api_key = os.environ.get("ORS_API_KEY")
@@ -48,11 +50,14 @@ def get_ors_api_key():
 def ors_walking_distance(lat1, lon1, lat2, lon2):
     """
     Gehentfernung (in km) zwischen zwei Punkten über OpenRouteService.
-    Wir gehen davon aus, dass ein API-Key vorhanden ist, sonst wird die
-    Berechnung bereits vorher abgebrochen.
-    Bei HTTP-Problemen fallback auf Luftlinie.
+    Wenn kein API-Key vorhanden ist oder ORS fehlschlägt,
+    wird automatisch Luftlinie verwendet.
     """
     api_key = get_ors_api_key()
+    if not api_key:
+        # Noch kein Key gesetzt → Luftlinie
+        return haversine_distance(lat1, lon1, lat2, lon2)
+
     headers = {
         "Authorization": api_key,
         "Content-Type": "application/json"
@@ -72,7 +77,7 @@ def ors_walking_distance(lat1, lon1, lat2, lon2):
         dist_m = data["features"][0]["properties"]["summary"]["distance"]
         return dist_m / 1000.0
     except Exception:
-        # Für Einzelfehler: Notfall-Fallback
+        # Wenn ORS spinnt → Luftlinie
         return haversine_distance(lat1, lon1, lat2, lon2)
 
 
@@ -85,9 +90,14 @@ def ors_walking_route_geometry(coords):
 
     Rückgabe:
       Liste von (lat, lon)-Tupeln für die Polyline.
-      Fallback: einfache Verbindung der Punkte (Luftlinie), falls ORS scheitert.
+      Wenn kein ORS-Key vorhanden ist oder ORS fehlschlägt,
+      werden die Punkte einfach direkt verbunden (Luftlinie).
     """
     api_key = get_ors_api_key()
+    if not api_key:
+        # Kein Key → einfache Verbindung der Punkte
+        return [(lat, lon) for lon, lat in coords]
+
     headers = {
         "Authorization": api_key,
         "Content-Type": "application/json"
@@ -101,11 +111,10 @@ def ors_walking_route_geometry(coords):
         resp = requests.post(ORS_BASE_URL, json=body, headers=headers, timeout=15)
         resp.raise_for_status()
         data = resp.json()
-        geom = data["features"][0]["geometry"]["coordinates"]  # Liste [lon, lat]
-        path = [(lat, lon) for lon, lat in geom]
-        return path
+        geom = data["features"][0]["geometry"]["coordinates"]  # [lon, lat]
+        return [(lat, lon) for lon, lat in geom]
     except Exception:
-        # Fallback: gerade Linien zwischen Punkten
+        # Fallback: Verbindung der Punkte
         return [(lat, lon) for lon, lat in coords]
 
 
@@ -193,9 +202,10 @@ def compute_preference_score(row, pref_essen, pref_bier, pref_sport):
 
 def build_greedy_route(user_lat, user_lon, bars_df):
     """
-    Greedy-Route mit ORS-Gehdistanz:
+    Greedy-Route:
       - Start bei (user_lat, user_lon)
       - immer zur nächstgelegenen (zu Fuß) noch unbesuchten Bar
+      - Distanz jeweils über ORS (wenn Key) oder Luftlinie
       - Startpunkt wandert mit
     """
     remaining = bars_df.copy()
@@ -230,10 +240,12 @@ def build_greedy_route(user_lat, user_lon, bars_df):
 
 def plot_route_map(user_lat, user_lon, route_df):
     """
-    Folium-Karte mit echter Fußgängerroute:
+    Folium-Karte:
       - Startmarker
       - Barmarker in Reihenfolge
-      - Polyline entlang der ORS-Route (nicht Luftlinie)
+      - Route:
+          * mit ORS-Key: echte Fußgängerroute
+          * ohne Key: Linie zwischen Punkten (Luftlinie)
     """
     if route_df.empty:
         return folium.Map(location=[user_lat, user_lon], zoom_start=15)
@@ -251,7 +263,7 @@ def plot_route_map(user_lat, user_lon, route_df):
         icon=folium.Icon(color="green", icon="home")
     ).add_to(m)
 
-    # Bars
+    # Bars & Koordinaten für Route
     coords = [[user_lon, user_lat]]  # Start zuerst
     for i, row in enumerate(route_df.itertuples(), start=1):
         folium.Marker(
@@ -261,7 +273,7 @@ def plot_route_map(user_lat, user_lon, route_df):
         ).add_to(m)
         coords.append([row.lon, row.lat])
 
-    # ORS-Route als Liniengeometrie
+    # Liniengeometrie: ORS oder Fallback
     path = ors_walking_route_geometry(coords)
     folium.PolyLine(path, weight=4, opacity=0.7).add_to(m)
 
@@ -284,6 +296,7 @@ def load_bars_csv(csv_path: str) -> pd.DataFrame:
     df["lat"] = df["lat"].astype(float)
     df["lon"] = df["lon"].astype(float)
 
+    # Präferenz-Spalten ggf. ergänzen
     for col in ["has_food", "is_beer_spot", "is_sportsbar"]:
         if col not in df.columns:
             df[col] = False
@@ -299,18 +312,20 @@ def main():
     st.set_page_config(page_title="Pub Crawl Regensburg", layout="centered")
     st.title("🍻 Pub Crawl Regensburg")
 
-    # --- ORS-Key Pflicht für Fußweg ---
+    # Hinweis, in welchem Modus wir sind
     if get_ors_api_key() is None:
-        st.error(
-            "Kein OpenRouteService API-Key konfiguriert.\n\n"
-            "Bitte setze `ORS_API_KEY` als Umgebungsvariable oder in den Streamlit-Secrets, "
-            "damit der Fußweg berechnet und angezeigt werden kann."
+        st.info(
+            "Aktuell ist kein OpenRouteService API-Key gesetzt. "
+            "Entfernungen und Route werden als Luftlinie berechnet. "
+            "Sobald ein ORS-Key gesetzt ist, werden automatisch echte Fußwege verwendet."
         )
-        return
+    else:
+        st.success("OpenRouteService API-Key erkannt – Entfernungen werden als Fußweg berechnet.")
 
     if "route_ready" not in st.session_state:
         st.session_state["route_ready"] = False
 
+    # Bars laden
     try:
         bars_df = load_bars_csv("bars_regensburg.csv")
     except Exception as e:
@@ -350,7 +365,7 @@ def main():
 
             k_effective = min(k, len(bars_df))
 
-            # Schritt 1: Gehentfernung Start → alle Bars
+            # Schritt 1: Distanz Start → Bars (zu Fuß, falls ORS; sonst Luftlinie)
             bars = bars_df.copy()
             bars["distance_km"] = bars.apply(
                 lambda r: ors_walking_distance(user_lat, user_lon, r["lat"], r["lon"]),
@@ -372,7 +387,7 @@ def main():
                 ascending=[False, True]
             ).copy()
 
-            # Schritt 5: Route mit ORS-Distanzen
+            # Schritt 5: Route
             route_df, total_dist = build_greedy_route(user_lat, user_lon, bars_ranked)
 
             st.session_state["route_ready"] = True
@@ -390,9 +405,15 @@ def main():
         route_df = st.session_state["route_df"]
         total_dist = st.session_state["total_dist"]
 
+        # Label je nach Modus
+        if get_ors_api_key() is None:
+            dist_label = "Luftlinie (ca.)"
+        else:
+            dist_label = "zu Fuß (ca.)"
+
         st.markdown("### Deine Pub-Crawl-Route 🍺")
 
-        st.write(f"Gesamtdistanz (zu Fuß, ca.): **{total_dist:.2f} km**")
+        st.write(f"Gesamtdistanz ({dist_label}): **{total_dist:.2f} km**")
 
         st.markdown("**Reihenfolge der Bars:**")
         route_view = route_df.reset_index(drop=True)[["name", "step_distance_km", "cum_distance_km"]]
@@ -400,14 +421,14 @@ def main():
         route_view.rename(
             columns={
                 "name": "Bar",
-                "step_distance_km": "Fußweg zur vorherigen (km)",
-                "cum_distance_km": "Gesamt-Fußweg (km)",
+                "step_distance_km": f"Distanz zur vorherigen ({dist_label})",
+                "cum_distance_km": f"Gesamtdistanz ({dist_label})",
             },
             inplace=True,
         )
         st.dataframe(route_view, use_container_width=True)
 
-        st.markdown("**Karte (Fußweg über Straßen):**")
+        st.markdown("**Karte:**")
         route_map = plot_route_map(user_lat, user_lon, route_df)
         st_folium(
             route_map,
