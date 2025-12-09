@@ -327,7 +327,7 @@ def main():
 
     # Bars laden
     try:
-        bars_df = load_bars_csv("bars_regensburg.csv")
+        bars_df = load_bars_csv("code/bars_regensburg.csv")
     except Exception as e:
         st.error(f"Fehler beim Laden der CSV: {e}")
         return
